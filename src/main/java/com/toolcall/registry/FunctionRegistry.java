@@ -26,14 +26,30 @@ public class FunctionRegistry {
     
     /**
      * 注册工具对象（扫描 @Tool 注解）
+     * 支持普通类和匿名内部类
      */
     public FunctionRegistry register(Object instance) {
-        for (Method method : instance.getClass().getDeclaredMethods()) {
+        Class<?> clazz = instance.getClass();
+        
+        // 收集所有方法（包括父类）
+        Set<Method> allMethods = new HashSet<>();
+        
+        // 获取当前类及其父类的方法
+        while (clazz != null && clazz != Object.class) {
+            for (Method m : clazz.getDeclaredMethods()) {
+                allMethods.add(m);
+            }
+            clazz = clazz.getSuperclass();
+        }
+        
+        // 注册所有 @Tool 注解的方法
+        for (Method method : allMethods) {
             Tool tool = method.getAnnotation(Tool.class);
             if (tool != null) {
                 registerMethod(instance, method, tool);
             }
         }
+        
         return this;
     }
     
