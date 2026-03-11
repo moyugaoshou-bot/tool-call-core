@@ -11,6 +11,7 @@
 
     <name>Tool Call Core</name>
     <description>LLM Tool Calling Framework - 零依赖AI框架的纯Java实现</description>
+    <url>https://github.com/moyugaoshou-bot/tool-call-core</url>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -18,6 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jackson.version>2.17.1</jackson.version>
         <junit.version>5.11.0</junit.version>
+        <jacoco.version>0.8.11</jacoco.version>
         <awaitility.version>4.2.1</awaitility.version>
     </properties>
 
@@ -37,13 +39,6 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
             <version>${jackson.version}</version>
-        </dependency>
-
-        <!-- Jakarta JSON Schema Generator -->
-        <dependency>
-            <groupId>com.networknt</groupId>
-            <artifactId>json-schema-validator</artifactId>
-            <version>1.0.87</version>
         </dependency>
 
         <!-- Test -->
@@ -72,6 +67,25 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
