@@ -1,5 +1,6 @@
 package com.toolcall.model;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -63,9 +64,11 @@ public record FunctionDef(
         
         /**
          * 转换为 JSON Schema
+         * 
+         * @return 符合 OpenAI 格式的 JSON Schema Map
          */
         public Map<String, Object> toJsonSchema() {
-            var schema = new java.util.LinkedHashMap<String, Object>();
+            LinkedHashMap<String, Object> schema = new LinkedHashMap<>();
             schema.put("type", type);
             
             if (description != null && !description.isEmpty()) {
@@ -86,14 +89,16 @@ public record FunctionDef(
     }
     
     /**
-     * 生成 JSON Schema
+     * 生成完整的 JSON Schema
+     * 
+     * @return 包含 type、properties、required 的完整 Schema
      */
     public Map<String, Object> toJsonSchema() {
-        var schema = new java.util.LinkedHashMap<String, Object>();
+        LinkedHashMap<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         
-        var props = new java.util.LinkedHashMap<String, Object>();
-        for (var entry : parameters.properties().entrySet()) {
+        LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+        for (Map.Entry<String, ParamSchema> entry : parameters.properties().entrySet()) {
             props.put(entry.getKey(), entry.getValue().toJsonSchema());
         }
         schema.put("properties", props);

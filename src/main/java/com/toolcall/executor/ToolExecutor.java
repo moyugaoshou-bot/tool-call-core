@@ -2,6 +2,7 @@ package com.toolcall.executor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.toolcall.annotation.Param;
 import com.toolcall.model.ToolCall;
 import com.toolcall.model.ToolResult;
 import com.toolcall.registry.FunctionRegistry;
@@ -74,7 +75,7 @@ public class ToolExecutor {
             Map<String, Object> args = resolveVariables(call.arguments(), context);
             
             // 获取元数据
-            var meta = registry.get(call.name());
+            FunctionRegistry.FuncMeta meta = registry.get(call.name());
             if (meta == null) {
                 return ToolResult.error(call.id(), call.name(), "Unknown function: " + call.name(), 
                     System.currentTimeMillis() - start);
@@ -108,7 +109,7 @@ public class ToolExecutor {
     @SuppressWarnings("unchecked")
     private Map<String, Object> resolveVariables(Map<String, Object> args, Map<String, ToolResult> context) {
         Map<String, Object> resolved = new HashMap<>();
-        for (var e : args.entrySet()) {
+        for (Map.Entry<String, Object> e : args.entrySet()) {
             if (e.getValue() instanceof String s) {
                 resolved.put(e.getKey(), replaceVars(s, context));
             } else {
@@ -143,7 +144,7 @@ public class ToolExecutor {
             Object value = null;
             
             // 1. 尝试用 @Param 注解的 name
-            var ann = param.getAnnotation(com.toolcall.annotation.Param.class);
+            Param ann = param.getAnnotation(com.toolcall.annotation.Param.class);
             if (ann != null && !ann.name().isEmpty()) {
                 value = args.get(ann.name());
             }
@@ -189,7 +190,7 @@ public class ToolExecutor {
     private List<List<String>> topologicalSort(Map<String, Set<String>> graph) {
         Map<String, Integer> inDegree = new HashMap<>();
         for (String n : graph.keySet()) inDegree.put(n, 0);
-        for (var e : graph.entrySet()) {
+        for (Map.Entry<String, Set<String>> e : graph.entrySet()) {
             for (String d : e.getValue()) inDegree.merge(e.getKey(), 1, Integer::sum);
         }
         
@@ -206,7 +207,7 @@ public class ToolExecutor {
             layers.add(layer);
             layer.forEach(n -> {
                 visited.add(n);
-                for (var e : graph.entrySet()) {
+                for (Map.Entry<String, Set<String>> e : graph.entrySet()) {
                     if (e.getValue().contains(n)) inDegree.merge(e.getKey(), -1, Integer::sum);
                 }
             });

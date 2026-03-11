@@ -82,8 +82,8 @@ public class PromptGenerator {
             if (f.parameters().properties().isEmpty()) {
                 sb.append("  - (none)\n");
             } else {
-                for (var entry : f.parameters().properties().entrySet()) {
-                    var p = entry.getValue();
+                for (Map.Entry<String, FunctionDef.ParamSchema> entry : f.parameters().properties().entrySet()) {
+                    FunctionDef.ParamSchema p = entry.getValue();
                     boolean required = f.parameters().required().contains(entry.getKey());
                     sb.append("  - `").append(entry.getKey()).append("`");
                     if (required) sb.append(" (required)");
