@@ -8,7 +8,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 提示词生成器 - 生成 LLM 可理解的工具描述
+ * 提示词生成器 - 将工具信息注入到 system prompt
+ * 
+ * 支持两种模式：
+ * 1. API 模式: 通过 LLM API 的 tools 参数传入（JSON格式）
+ * 2. Prompt 模式: 将工具信息写入 system prompt，让 LLM 自行决定调用
  */
 public class PromptGenerator {
     
@@ -20,8 +24,11 @@ public class PromptGenerator {
         this.mapper = new ObjectMapper();
     }
     
+    // ==================== API 模式：生成 OpenAI 格式 tools JSON ====================
+    
     /**
-     * 生成 OpenAI 格式的 tools JSON
+     * 生成 OpenAI API 格式的 tools JSON
+     * 用于 LLM API 的 tools 参数
      */
     public String toOpenAIToolsJson() {
         try {
@@ -48,27 +55,30 @@ public class PromptGenerator {
         return Map.of("type", "function", "function", func);
     }
     
+    // ==================== Prompt 模式：生成提示词 ====================
+    
     /**
-     * 生成自然语言工具描述（用于 system prompt）
+     * 生成完整的 system prompt（包含工具信息）
+     * 这是给 LLM 看的提示词，告诉它有哪些工具可用
      */
-    public String toNaturalLanguage() {
+    public String toSystemPrompt() {
         StringBuilder sb = new StringBuilder();
-        sb.append("## Available Functions/Tools\n\n");
-        sb.append("You can call these functions to help answer the user's question:\n\n");
+        
+        sb.append("You have access to the following functions:\n\n");
         
         for (FunctionDef f : registry.getAllFunctions()) {
-            sb.append("### ").append(f.name()).append("\n");
+            sb.append("## ").append(f.name()).append("\n");
             sb.append(f.description()).append("\n");
-            sb.append("**Parameters:**\n");
+            sb.append("Parameters:\n");
             
             if (f.parameters().properties().isEmpty()) {
                 sb.append("  - (none)\n");
             } else {
                 for (var entry : f.parameters().properties().entrySet()) {
                     var p = entry.getValue();
-                    sb.append("  - `").append(entry.getKey()).append("`");
+                    sb.append("  - ").append(entry.getKey());
                     if (f.parameters().required().contains(entry.getKey())) {
-                        sb.append(" [required]");
+                        sb.append(" (required)");
                     }
                     sb.append(": ").append(p.type());
                     if (p.description() != null && !p.description().isEmpty()) {
@@ -80,50 +90,68 @@ public class PromptGenerator {
             sb.append("\n");
         }
         
-        sb.append("\n## How to Call Functions\n\n");
-        sb.append("When you need to call a function, respond with a JSON object:\n\n");
-        sb.append("```json\n");
-        sb.append("{\n");
-        sb.append("  \"tool_calls\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"id\": \"call_001\",\n");
-        sb.append("      \"name\": \"function_name\",\n");
-        sb.append("      \"arguments\": {\n");
-        sb.append("        \"param1\": \"value1\",\n");
-        sb.append("        \"param2\": \"value2\"\n");
-        sb.append("      }\n");
-        sb.append("    }\n");
-        sb.append("  ]\n");
-        sb.append("}\n");
-        sb.append("```\n\n");
-        sb.append("After receiving tool results, continue with your answer.\n");
+        sb.append("\n").append(getCallingInstructions());
         
         return sb.toString();
     }
     
     /**
-     * 生成工具结果格式化说明
+     * 生成工具调用说明 - 告诉 LLM 如何返回工具调用
      */
-    public String getResultFormatInstructions() {
+    public String getCallingInstructions() {
         return """
-            ## Tool Result Format
-            
-            When a tool is executed, you'll receive results in this format:
-            
-            ```json
-            {
-              "tool_results": [
-                {
-                  "id": "call_001",
-                  "name": "function_name",
-                  "result": "the result value or error message",
-                  "success": true
-                }
-              ]
-            }
-            ```
-            
-            Use these results to formulate your final answer to the user.
-            """;
+## How to Call Functions
+
+When you need to use a function, respond with a JSON object in the following format:
+
+{
+  "tool_calls": [
+    {
+      "id": "call_001",
+      "name": "function_name",
+      "arguments": {
+        "param1": "value1",
+        "param2": "value2"
+      }
+    }
+  ]
+}
+
+Important:
+- Always use "tool_calls" key for function calls
+- Each call must have a unique "id"
+- Use "arguments" for parameter values
+- Do not call functions in your text response, only in the JSON block
+""";
+    }
+    
+    /**
+     * 生成工具结果处理说明
+     */
+    public String getResultHandlingInstructions() {
+        return """
+## Handling Tool Results
+
+When you receive tool results, analyze them and provide your final answer to the user.
+The results will be in this format:
+
+{
+  "tool_results": [
+    {
+      "id": "call_001",
+      "name": "function_name",
+      "result": "the result value",
+      "success": true
+    }
+  ]
+}
+""";
+    }
+    
+    /**
+     * 生成完整的 system prompt（包含工具信息 + 调用说明 + 结果处理）
+     */
+    public String toFullSystemPrompt() {
+        return toSystemPrompt() + "\n" + getResultHandlingInstructions();
     }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.toolcall.ToolCallTest" time="3.07" tests="22" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.toolcall.ToolCallTest" time="3.187" tests="15" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="21"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -13,7 +13,7 @@
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="US"/>
     <property name="sun.boot.library.path" value="/home/gyt/.sdkman/candidates/java/21.0.10-amzn/lib"/>
-    <property name="sun.java.command" value="/home/gyt/.openclaw/workspace/tool-call-core/target/surefire/surefirebooter-20260311130758714_3.jar /home/gyt/.openclaw/workspace/tool-call-core/target/surefire 2026-03-11T13-07-58_385-jvmRun1 surefire-20260311130758714_1tmp surefire_0-20260311130758714_2tmp"/>
+    <property name="sun.java.command" value="/home/gyt/.openclaw/workspace/tool-call-core/target/surefire/surefirebooter-20260311131320081_3.jar /home/gyt/.openclaw/workspace/tool-call-core/target/surefire 2026-03-11T13-13-19_786-jvmRun1 surefire-20260311131320081_1tmp surefire_0-20260311131320081_2tmp"/>
     <property name="jdk.debug" value="release"/>
     <property name="surefire.test.class.path" value="/home/gyt/.openclaw/workspace/tool-call-core/target/test-classes:/home/gyt/.openclaw/workspace/tool-call-core/target/classes:/home/gyt/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.17.1/jackson-databind-2.17.1.jar:/home/gyt/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.17.1/jackson-annotations-2.17.1.jar:/home/gyt/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.17.1/jackson-core-2.17.1.jar:/home/gyt/.m2/repository/com/fasterxml/jackson/module/jackson-module-parameter-names/2.17.1/jackson-module-parameter-names-2.17.1.jar:/home/gyt/.m2/repository/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.17.1/jackson-datatype-jsr310-2.17.1.jar:/home/gyt/.m2/repository/org/junit/jupiter/junit-jupiter/5.11.0/junit-jupiter-5.11.0.jar:/home/gyt/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.11.0/junit-jupiter-api-5.11.0.jar:/home/gyt/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/home/gyt/.m2/repository/org/junit/platform/junit-platform-commons/1.11.0/junit-platform-commons-1.11.0.jar:/home/gyt/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/home/gyt/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.11.0/junit-jupiter-params-5.11.0.jar:/home/gyt/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.11.0/junit-jupiter-engine-5.11.0.jar:/home/gyt/.m2/repository/org/junit/platform/junit-platform-engine/1.11.0/junit-platform-engine-1.11.0.jar:/home/gyt/.m2/repository/org/awaitility/awaitility/4.2.1/awaitility-4.2.1.jar:/home/gyt/.m2/repository/org/hamcrest/hamcrest/2.1/hamcrest-2.1.jar:"/>
     <property name="sun.cpu.endian" value="little"/>
@@ -28,7 +28,7 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
-    <property name="surefire.real.class.path" value="/home/gyt/.openclaw/workspace/tool-call-core/target/surefire/surefirebooter-20260311130758714_3.jar"/>
+    <property name="surefire.real.class.path" value="/home/gyt/.openclaw/workspace/tool-call-core/target/surefire/surefirebooter-20260311131320081_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
     <property name="java.runtime.version" value="21.0.10+7-LTS"/>
     <property name="user.name" value="gyt"/>
@@ -55,26 +55,19 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="65.0"/>
   </properties>
-  <testcase name="testRegister" classname="com.toolcall.ToolCallTest" time="0.17"/>
-  <testcase name="testGetNames" classname="com.toolcall.ToolCallTest" time="0.039"/>
-  <testcase name="testToolsJson_OpenAIFormat" classname="com.toolcall.ToolCallTest" time="0.389"/>
-  <testcase name="testToolsJson_SchemaStructure" classname="com.toolcall.ToolCallTest" time="0.021"/>
-  <testcase name="testToolsDescription" classname="com.toolcall.ToolCallTest" time="0.015"/>
-  <testcase name="testParse_OpenAIFormat_Full" classname="com.toolcall.ToolCallTest" time="0.268"/>
-  <testcase name="testParse_OpenAIFormat_StringArguments" classname="com.toolcall.ToolCallTest" time="0.013"/>
-  <testcase name="testParse_SimplifiedFormat" classname="com.toolcall.ToolCallTest" time="0.024"/>
-  <testcase name="testParse_MultipleToolCalls" classname="com.toolcall.ToolCallTest" time="0.006"/>
-  <testcase name="testParse_ArrayFormat" classname="com.toolcall.ToolCallTest" time="0.005"/>
-  <testcase name="testParse_EmptyResponse" classname="com.toolcall.ToolCallTest" time="0.007"/>
-  <testcase name="testExecuteSingle" classname="com.toolcall.ToolCallTest" time="0.054"/>
-  <testcase name="testExecuteMultiple" classname="com.toolcall.ToolCallTest" time="0.014"/>
-  <testcase name="testExecuteWithDefaultParams" classname="com.toolcall.ToolCallTest" time="0.008"/>
-  <testcase name="testExecuteIntegerReturn" classname="com.toolcall.ToolCallTest" time="0.022"/>
-  <testcase name="testExecuteMapReturn" classname="com.toolcall.ToolCallTest" time="0.006"/>
-  <testcase name="testExecuteUnknownTool" classname="com.toolcall.ToolCallTest" time="0.02"/>
-  <testcase name="testExecuteParallel" classname="com.toolcall.ToolCallTest" time="0.009"/>
-  <testcase name="testExecuteOneShot" classname="com.toolcall.ToolCallTest" time="0.014"/>
-  <testcase name="testExecuteEmptyList" classname="com.toolcall.ToolCallTest" time="0.004"/>
-  <testcase name="testRegistryGet" classname="com.toolcall.ToolCallTest" time="0.004"/>
-  <testcase name="testResultFormatInstructions" classname="com.toolcall.ToolCallTest" time="0.006"/>
+  <testcase name="testRegister" classname="com.toolcall.ToolCallTest" time="0.131"/>
+  <testcase name="testToolsJson_OpenAIFormat" classname="com.toolcall.ToolCallTest" time="0.37"/>
+  <testcase name="testSystemPrompt" classname="com.toolcall.ToolCallTest" time="0.009"/>
+  <testcase name="testFullSystemPrompt" classname="com.toolcall.ToolCallTest" time="0.028"/>
+  <testcase name="testCallingInstructions" classname="com.toolcall.ToolCallTest" time="0.012"/>
+  <testcase name="testResultHandlingInstructions" classname="com.toolcall.ToolCallTest" time="0.008"/>
+  <testcase name="testParse_OpenAIFormat" classname="com.toolcall.ToolCallTest" time="0.214"/>
+  <testcase name="testParse_MultipleToolCalls" classname="com.toolcall.ToolCallTest" time="0.015"/>
+  <testcase name="testParse_EmptyResponse" classname="com.toolcall.ToolCallTest" time="0.015"/>
+  <testcase name="testExecuteSingle" classname="com.toolcall.ToolCallTest" time="0.039"/>
+  <testcase name="testExecuteMultiple" classname="com.toolcall.ToolCallTest" time="0.029"/>
+  <testcase name="testExecuteIntegerReturn" classname="com.toolcall.ToolCallTest" time="0.03"/>
+  <testcase name="testExecuteUnknownTool" classname="com.toolcall.ToolCallTest" time="0.013"/>
+  <testcase name="testExecuteOneShot" classname="com.toolcall.ToolCallTest" time="0.021"/>
+  <testcase name="testExecuteEmptyList" classname="com.toolcall.ToolCallTest" time="0.006"/>
 </testsuite>
