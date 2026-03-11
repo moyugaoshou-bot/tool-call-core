@@ -137,13 +137,45 @@ public class ToolExecutor {
     private Object[] convertParams(FunctionRegistry.FuncMeta meta, Map<String, Object> args) {
         Parameter[] ps = meta.method().getParameters();
         Object[] result = new Object[ps.length];
+        
         for (int i = 0; i < ps.length; i++) {
-            var ann = ps[i].getAnnotation(com.toolcall.annotation.Param.class);
-            String pName = ann != null && !ann.name().isEmpty() ? ann.name() : ps[i].getName();
-            Object v = args.get(pName);
-            result[i] = v != null ? mapper.convertValue(v, TypeFactory.defaultInstance().constructType(ps[i].getParameterizedType())) : null;
+            Parameter param = ps[i];
+            Object value = null;
+            
+            // 1. 尝试用 @Param 注解的 name
+            var ann = param.getAnnotation(com.toolcall.annotation.Param.class);
+            if (ann != null && !ann.name().isEmpty()) {
+                value = args.get(ann.name());
+            }
+            
+            // 2. 如果没找到，尝试用参数索引作为 key（因为 LLM 可能按顺序传参）
+            if (value == null) {
+                // 按参数顺序尝试
+                List<Object> argValues = new ArrayList<>(args.values());
+                if (i < argValues.size()) {
+                    value = argValues.get(i);
+                }
+            }
+            
+            // 3. 转换为目标类型
+            if (value != null) {
+                result[i] = mapper.convertValue(value, 
+                    TypeFactory.defaultInstance().constructType(param.getParameterizedType()));
+            } else {
+                result[i] = getDefaultValue(param.getType());
+            }
         }
+        
         return result;
+    }
+    
+    private Object getDefaultValue(Class<?> type) {
+        if (type == boolean.class) return false;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == double.class) return 0.0;
+        if (type == float.class) return 0.0f;
+        return null;
     }
     
     private List<List<String>> topologicalSort(Map<String, Set<String>> graph) {
