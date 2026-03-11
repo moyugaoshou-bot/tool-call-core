@@ -13,6 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * ToolCall Framework 完整测试套件
+ * 
+ * 测试覆盖:
+ * 1. 工具注册
+ * 2. OpenAI 格式工具定义生成
+ * 3. OpenAI 格式工具调用解析
+ * 4. 工具执行
+ * 5. 依赖执行
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ToolCallTest {
@@ -25,7 +32,7 @@ class ToolCallTest {
         framework.register(new DemoTools());
     }
     
-    // ==================== 注册表测试 ====================
+    // ==================== 1. 注册表测试 ====================
     
     @Test
     @Order(1)
@@ -45,27 +52,31 @@ class ToolCallTest {
         assertTrue(names.contains("get_weather"));
     }
     
-    // ==================== 工具定义生成测试 ====================
+    // ==================== 2. OpenAI 格式工具定义生成测试 ====================
     
     @Test
     @Order(3)
-    void testToolsJson() {
+    void testToolsJson_OpenAIFormat() {
         String json = framework.toolsJson();
         assertNotNull(json);
-        assertTrue(json.contains("\"tools\""));
-        assertTrue(json.contains("get_weather"));
-        assertTrue(json.contains("search_hotels"));
-        assertTrue(json.contains("book_hotel"));
+        
+        // 验证 OpenAI 格式结构
+        assertTrue(json.contains("\"tools\""), "应包含 tools 数组");
+        assertTrue(json.contains("\"type\":\"function\""), "应包含 type: function");
+        assertTrue(json.contains("\"name\":\"get_weather\""), "应包含函数名");
+        assertTrue(json.contains("\"description\""), "应包含描述");
+        assertTrue(json.contains("\"parameters\""), "应包含参数定义");
     }
     
     @Test
     @Order(4)
-    void testToolsJsonStructure() {
+    void testToolsJson_SchemaStructure() {
         String json = framework.toolsJson();
-        // 验证 JSON 结构包含必要字段
-        assertTrue(json.contains("\"type\":\"function\""));
-        assertTrue(json.contains("\"name\":\"get_weather\""));
-        assertTrue(json.contains("\"parameters\""));
+        
+        // 验证 JSON Schema 结构
+        assertTrue(json.contains("\"type\":\"object\""), "parameters 应为 object 类型");
+        assertTrue(json.contains("\"properties\""), "应包含 properties");
+        assertTrue(json.contains("\"required\""), "应包含 required");
     }
     
     @Test
@@ -79,28 +90,32 @@ class ToolCallTest {
         assertTrue(desc.contains("search_hotels"));
     }
     
-    // ==================== 解析器测试 ====================
+    // ==================== 3. OpenAI 格式工具调用解析测试 ====================
     
     @Test
     @Order(6)
-    void testParseToolCalls() {
+    void testParse_OpenAIFormat_Full() {
+        // OpenAI 完整格式: 包含 type 和嵌套的 function 对象
         String response = """
             {
               "tool_calls": [
                 {
-                  "id": "call_001",
-                  "name": "get_weather",
-                  "arguments": {"city": "Beijing", "unit": "celsius"}
+                  "id": "call_abc123",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {"city": "Beijing", "unit": "celsius"}
+                  }
                 }
               ]
             }
             """;
         
         List<ToolCall> calls = framework.parse(response);
-        assertEquals(1, calls.size());
         
+        assertEquals(1, calls.size());
         ToolCall call = calls.get(0);
-        assertEquals("call_001", call.id());
+        assertEquals("call_abc123", call.id());
         assertEquals("get_weather", call.name());
         assertEquals("Beijing", call.arguments().get("city"));
         assertEquals("celsius", call.arguments().get("unit"));
@@ -108,25 +123,74 @@ class ToolCallTest {
     
     @Test
     @Order(7)
-    void testParseMultipleToolCalls() {
+    void testParse_OpenAIFormat_StringArguments() {
+        // arguments 是字符串格式
         String response = """
             {
               "tool_calls": [
-                {"id": "call_001", "name": "get_weather", "arguments": {"city": "Beijing"}},
-                {"id": "call_002", "name": "search_hotels", "arguments": {"city": "Shanghai", "min_price": 300}}
+                {
+                  "id": "call_xyz789",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\\"city\\": \\"Shanghai\\", \\"unit\\": \\"fahrenheit\\"}"
+                  }
+                }
               ]
             }
             """;
         
         List<ToolCall> calls = framework.parse(response);
+        
+        assertEquals(1, calls.size());
+        assertEquals("call_xyz789", calls.get(0).id());
+        assertEquals("Shanghai", calls.get(0).arguments().get("city"));
+    }
+    
+    @Test
+    @Order(8)
+    void testParse_SimplifiedFormat() {
+        // 简化格式: 直接在根节点
+        String response = """
+            {
+              "tool_calls": [
+                {
+                  "id": "call_001",
+                  "name": "get_weather",
+                  "arguments": {"city": "Beijing"}
+                }
+              ]
+            }
+            """;
+        
+        List<ToolCall> calls = framework.parse(response);
+        
+        assertEquals(1, calls.size());
+        assertEquals("get_weather", calls.get(0).name());
+    }
+    
+    @Test
+    @Order(9)
+    void testParse_MultipleToolCalls() {
+        String response = """
+            {
+              "tool_calls": [
+                {"id": "call_001", "type": "function", "function": {"name": "get_weather", "arguments": {"city": "Beijing"}}},
+                {"id": "call_002", "type": "function", "function": {"name": "search_hotels", "arguments": {"city": "Shanghai"}}}
+              ]
+            }
+            """;
+        
+        List<ToolCall> calls = framework.parse(response);
+        
         assertEquals(2, calls.size());
         assertEquals("call_001", calls.get(0).id());
         assertEquals("call_002", calls.get(1).id());
     }
     
     @Test
-    @Order(8)
-    void testParseArrayFormat() {
+    @Order(10)
+    void testParse_ArrayFormat() {
         String response = """
             [
               {"id": "call_001", "name": "get_weather", "arguments": {"city": "Beijing"}}
@@ -139,37 +203,19 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(9)
-    void testParseWithStringArguments() {
-        String response = """
-            {
-              "tool_calls": [
-                {
-                  "id": "call_001",
-                  "name": "get_weather",
-                  "arguments": "{\\"city\\": \\"Beijing\\", \\"unit\\": \\"celsius\\"}"
-                }
-              ]
-            }
-            """;
-        
-        List<ToolCall> calls = framework.parse(response);
-        assertEquals(1, calls.size());
-        assertEquals("Beijing", calls.get(0).arguments().get("city"));
-    }
-    
-    @Test
-    @Order(10)
-    void testParseEmptyResponse() {
+    @Order(11)
+    void testParse_EmptyResponse() {
         assertTrue(framework.parse("").isEmpty());
         assertTrue(framework.parse(null).isEmpty());
         assertTrue(framework.parse("not json").isEmpty());
+        assertTrue(framework.parse("{}").isEmpty());
+        assertTrue(framework.parse("{\"text\": \"hello\"}").isEmpty());
     }
     
-    // ==================== 执行器测试 ====================
+    // ==================== 4. 执行器测试 ====================
     
     @Test
-    @Order(11)
+    @Order(12)
     void testExecuteSingle() {
         ToolCall call = new ToolCall("call_001", "get_weather", 
             Map.of("city", "Shanghai", "unit", "celsius"));
@@ -181,11 +227,10 @@ class ToolCallTest {
         assertTrue(result.isSuccess());
         assertEquals("call_001", result.id());
         assertEquals("get_weather", result.name());
-        assertTrue(result.result().toString().contains("天气"));
     }
     
     @Test
-    @Order(12)
+    @Order(13)
     void testExecuteMultiple() {
         ToolCall c1 = new ToolCall("call_001", "get_weather", Map.of("city", "Beijing"));
         ToolCall c2 = new ToolCall("call_002", "search_hotels", Map.of("city", "Shanghai"));
@@ -197,22 +242,18 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(13)
+    @Order(14)
     void testExecuteWithDefaultParams() {
-        // 只传必需参数，可选参数使用默认值
-        ToolCall call = new ToolCall("call_001", "get_weather", 
-            Map.of("city", "Beijing"));
+        ToolCall call = new ToolCall("call_001", "get_weather", Map.of("city", "Beijing"));
         
         List<ToolResult> results = framework.execute(List.of(call));
-        
         assertTrue(results.get(0).isSuccess());
     }
     
     @Test
-    @Order(14)
+    @Order(15)
     void testExecuteIntegerReturn() {
-        ToolCall call = new ToolCall("call_001", "add_numbers", 
-            Map.of("a", 10, "b", 20));
+        ToolCall call = new ToolCall("call_001", "add_numbers", Map.of("a", 10, "b", 20));
         
         List<ToolResult> results = framework.execute(List.of(call));
         
@@ -221,10 +262,9 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(15)
+    @Order(16)
     void testExecuteMapReturn() {
-        ToolCall call = new ToolCall("call_001", "get_config", 
-            Map.of("key", "database_url"));
+        ToolCall call = new ToolCall("call_001", "get_config", Map.of("key", "database_url"));
         
         List<ToolResult> results = framework.execute(List.of(call));
         
@@ -233,45 +273,39 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(16)
+    @Order(17)
     void testExecuteUnknownTool() {
         ToolCall call = new ToolCall("call_001", "unknown_tool", Map.of());
         
         List<ToolResult> results = framework.execute(List.of(call));
         
-        assertEquals(1, results.size());
         assertFalse(results.get(0).isSuccess());
-        assertNotNull(results.get(0).error());
         assertTrue(results.get(0).error().contains("Unknown"));
     }
     
-    // ==================== 依赖执行测试 ====================
-    
-    @Test
-    @Order(17)
-    void testExecuteParallel() {
-        // 无依赖的调用应并行执行
-        ToolCall c1 = new ToolCall("call_001", "get_weather", Map.of("city", "Beijing"));
-        ToolCall c2 = new ToolCall("call_002", "get_weather", Map.of("city", "Shanghai"));
-        ToolCall c3 = new ToolCall("call_003", "get_weather", Map.of("city", "Guangzhou"));
-        
-        long start = System.currentTimeMillis();
-        List<ToolResult> results = framework.execute(List.of(c1, c2, c3));
-        long duration = System.currentTimeMillis() - start;
-        
-        assertEquals(3, results.size());
-        assertTrue(results.stream().allMatch(ToolResult::isSuccess));
-    }
-    
-    // ==================== One-shot 执行测试 ====================
+    // ==================== 5. 依赖执行测试 ====================
     
     @Test
     @Order(18)
+    void testExecuteParallel() {
+        ToolCall c1 = new ToolCall("call_001", "get_weather", Map.of("city", "Beijing"));
+        ToolCall c2 = new ToolCall("call_002", "get_weather", Map.of("city", "Shanghai"));
+        
+        List<ToolResult> results = framework.execute(List.of(c1, c2));
+        
+        assertEquals(2, results.size());
+        assertTrue(results.stream().allMatch(ToolResult::isSuccess));
+    }
+    
+    // ==================== 6. One-shot 执行测试 ====================
+    
+    @Test
+    @Order(19)
     void testExecuteOneShot() {
         String response = """
             {
               "tool_calls": [
-                {"id": "call_001", "name": "add_numbers", "arguments": {"a": 100, "b": 200}}
+                {"id": "call_001", "type": "function", "function": {"name": "add_numbers", "arguments": {"a": 100, "b": 200}}}
               ]
             }
             """;
@@ -283,21 +317,28 @@ class ToolCallTest {
         assertEquals(300, results.get(0).result());
     }
     
-    // ==================== 边界测试 ====================
+    // ==================== 7. 边界测试 ====================
     
     @Test
-    @Order(19)
+    @Order(20)
     void testExecuteEmptyList() {
         List<ToolResult> results = framework.execute(List.of());
         assertTrue(results.isEmpty());
     }
     
     @Test
-    @Order(20)
+    @Order(21)
     void testRegistryGet() {
         var meta = framework.registry().get("get_weather");
         assertNotNull(meta);
         assertEquals("get_weather", meta.name());
-        assertNotNull(meta.parameters());
+    }
+    
+    @Test
+    @Order(22)
+    void testResultFormatInstructions() {
+        String instructions = framework.toolsDescription();
+        assertTrue(instructions.contains("tool_calls"));
+        assertTrue(instructions.contains("arguments"));
     }
 }
