@@ -76,7 +76,17 @@ public class FunctionRegistry {
     public List<FunctionDef> getAllFunctions() {
         return functions.values().stream()
             .map(f -> FunctionDef.of(f.name(), f.description(), f.parameters(), 
-                f.parameters().keySet().stream().toList()))
+                getRequiredParams(f.parameters())))
+            .toList();
+    }
+    
+    /**
+     * 获取必填参数列表
+     */
+    private List<String> getRequiredParams(Map<String, FunctionDef.ParamSchema> params) {
+        return params.entrySet().stream()
+            .filter(e -> e.getValue().defaultValue() == null)  // 没有默认值的才是必填
+            .map(Map.Entry::getKey)
             .toList();
     }
     

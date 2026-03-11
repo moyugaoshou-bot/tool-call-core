@@ -5,7 +5,6 @@ import com.toolcall.model.FunctionDef;
 import com.toolcall.registry.FunctionRegistry;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 提示词生成器 - 将工具信息注入到 system prompt
@@ -29,6 +28,24 @@ public class PromptGenerator {
     /**
      * 生成 OpenAI API 格式的 tools JSON
      * 用于 LLM API 的 tools 参数
+     * 
+     * 输出格式符合 OpenAI 规范:
+     * {
+     *   "tools": [
+     *     {
+     *       "type": "function",
+     *       "function": {
+     *         "name": "get_weather",
+     *         "description": "...",
+     *         "parameters": {
+     *           "type": "object",
+     *           "properties": {...},
+     *           "required": [...]
+     *         }
+     *       }
+     *     }
+     *   ]
+     * }
      */
     public String toOpenAIToolsJson() {
         try {
@@ -45,13 +62,7 @@ public class PromptGenerator {
         Map<String, Object> func = new LinkedHashMap<>();
         func.put("name", f.name());
         func.put("description", f.description());
-        
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("properties", f.parameters().properties());
-        schema.put("required", f.parameters().required());
-        func.put("parameters", schema);
-        
+        func.put("parameters", f.toJsonSchema()); // 使用干净的 JSON Schema
         return Map.of("type", "function", "function", func);
     }
     
@@ -76,8 +87,10 @@ public class PromptGenerator {
             } else {
                 for (var entry : f.parameters().properties().entrySet()) {
                     var p = entry.getValue();
+                    boolean isRequired = f.parameters().required().contains(entry.getKey());
+                    
                     sb.append("  - ").append(entry.getKey());
-                    if (f.parameters().required().contains(entry.getKey())) {
+                    if (isRequired) {
                         sb.append(" (required)");
                     }
                     sb.append(": ").append(p.type());
