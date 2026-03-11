@@ -177,14 +177,20 @@ class FullFlowTest {
         assertEquals("add", result.toolCalls().get(0).name());
     }
     
+    // ==================== 4b. 嵌套POJO解析测试 ====================
+    
     @Test
     @Order(11)
-    void test4_parseNestedObject() {
+    void test4_parseNestedObject_MapArg() {
+        // 使用 Map<String,Object> 作为参数
         String resp = """
             {"tool_calls":[{"id":"c1","name":"create_user","arguments":{"user":{"name":"Tom","age":25,"address":{"city":"Beijing"}}}}]}
             """;
         var result = framework.parse(resp);
         assertEquals(1, result.toolCalls().size());
+        
+        Map<String, Object> user = (Map<String, Object>) result.toolCalls().get(0).arguments().get("user");
+        assertEquals("Tom", user.get("name"));
     }
     
     @Test
@@ -245,7 +251,8 @@ class FullFlowTest {
     
     @Test
     @Order(18)
-    void test5_executePOJO() {
+    void test5_executePOJO_MapArg() {
+        // 使用 Map 传参（框架可以处理）
         Map<String, Object> userArgs = new HashMap<>();
         Map<String, Object> addr = new HashMap<>();
         addr.put("city", "Shanghai");
@@ -255,6 +262,7 @@ class FullFlowTest {
         
         var call = new ToolCall("c1", "create_user", Map.of("user", userArgs));
         var results = framework.execute(List.of(call));
+        assertTrue(results.get(0).isSuccess());
         assertTrue(results.get(0).result().toString().contains("Bob"));
     }
     

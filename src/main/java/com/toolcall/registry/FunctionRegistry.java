@@ -69,7 +69,13 @@ public class FunctionRegistry {
         if (ann != null && !ann.name().isEmpty()) {
             return ann.name();
         }
-        return p.getName(); // 使用参数原名
+        // 尝试使用参数原名，如果是 arg0, arg1 等，尝试从方法推断
+        String originalName = p.getName();
+        if (originalName != null && !originalName.startsWith("arg")) {
+            return originalName;
+        }
+        // 返回空字符串，让后续处理使用索引
+        return "";
     }
     
     /**
