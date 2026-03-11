@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 工具注册表
- * 支持自动检测复杂类型并生成 JSON Schema
+ * 支持自动检测参数类型
  */
 public class FunctionRegistry {
     private final Map<String, FuncMeta> functions = new ConcurrentHashMap<>();
@@ -45,23 +45,17 @@ public class FunctionRegistry {
         
         for (Parameter p : method.getParameters()) {
             Param ann = p.getAnnotation(Param.class);
-            if (ann != null) {
-                String pName = ann.name().isEmpty() ? p.getName() : ann.name();
-                
-                // 自动检测类型
-                String type = detectType(p.getType(), ann);
-                Object defaultVal = parseDefaultValue(p.getType(), ann);
-                
-                // 如果是复杂类型（自定义类），生成 JSON Schema
-                Map<String, Object> schema = null;
-                if (isComplexType(p.getType()) && !ann.type().equals("array")) {
-                    schema = SchemaGenerator.generateSchema(p.getType());
-                }
-                
-                params.put(pName, new FunctionDef.ParamSchema(
-                    type, ann.description(), defaultVal, null, schema
-                ));
-            }
+            
+            // 自动检测参数信息
+            String pName = detectParamName(p, ann);
+            String type = detectParamType(p.getType());
+            String description2 = detectParamDescription(p, ann);
+            Object defaultVal = detectDefaultValue(p.getType(), ann);
+            Map<String, Object> nestedSchema = detectNestedSchema(p.getType());
+            
+            params.put(pName, new FunctionDef.ParamSchema(
+                type, description2, defaultVal, null, nestedSchema
+            ));
         }
         
         method.setAccessible(true);
@@ -69,15 +63,19 @@ public class FunctionRegistry {
     }
     
     /**
+     * 检测参数名称
+     */
+    private String detectParamName(Parameter p, Param ann) {
+        if (ann != null && !ann.name().isEmpty()) {
+            return ann.name();
+        }
+        return p.getName(); // 使用参数原名
+    }
+    
+    /**
      * 检测参数类型
      */
-    private String detectType(Class<?> paramType, Param ann) {
-        // 如果用户明确指定了类型，使用用户指定的
-        if (!ann.type().isEmpty() && !ann.type().equals("auto")) {
-            return ann.type();
-        }
-        
-        // 自动检测
+    private String detectParamType(Class<?> paramType) {
         if (paramType == String.class) return "string";
         if (paramType == int.class || paramType == Integer.class) return "integer";
         if (paramType == long.class || paramType == Long.class) return "integer";
@@ -87,25 +85,69 @@ public class FunctionRegistry {
         if (paramType.isArray()) return "array";
         if (List.class.isAssignableFrom(paramType)) return "array";
         if (Map.class.isAssignableFrom(paramType)) return "object";
-        
-        // 自定义类视为 object
+        // 自定义类
         if (!paramType.isPrimitive() && paramType != Object.class) {
             return "object";
         }
-        
         return "string";
     }
     
     /**
-     * 判断是否为复杂类型
+     * 检测参数描述
      */
-    private boolean isComplexType(Class<?> type) {
-        return !isBasicType(type);
+    private String detectParamDescription(Parameter p, Param ann) {
+        if (ann != null && !ann.description().isEmpty()) {
+            return ann.description();
+        }
+        // 尝试从参数名生成描述
+        String name = p.getName();
+        return "The " + name + " parameter";
     }
     
     /**
-     * 判断是否为基础类型
+     * 检测默认值
      */
+    private Object detectDefaultValue(Class<?> paramType, Param ann) {
+        if (ann != null && !ann.defaultValue().isEmpty()) {
+            try {
+                if (paramType == Integer.class || paramType == int.class) {
+                    return Integer.parseInt(ann.defaultValue());
+                }
+                if (paramType == Long.class || paramType == long.class) {
+                    return Long.parseLong(ann.defaultValue());
+                }
+                if (paramType == Double.class || paramType == double.class) {
+                    return Double.parseDouble(ann.defaultValue());
+                }
+                if (paramType == Boolean.class || paramType == boolean.class) {
+                    return Boolean.parseBoolean(ann.defaultValue());
+                }
+                return ann.defaultValue();
+            } catch (NumberFormatException e) {
+                return ann.defaultValue();
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 检测嵌套 Schema（复杂类型）
+     */
+    private Map<String, Object> detectNestedSchema(Class<?> paramType) {
+        // 跳过基本类型和常见集合类型
+        if (isBasicType(paramType) || Map.class.isAssignableFrom(paramType)) {
+            return null;
+        }
+        if (List.class.isAssignableFrom(paramType) || paramType.isArray()) {
+            return null;
+        }
+        // 对复杂对象生成 Schema
+        if (!paramType.isPrimitive() && paramType != Object.class) {
+            return SchemaGenerator.generateSchema(paramType);
+        }
+        return null;
+    }
+    
     private boolean isBasicType(Class<?> type) {
         return type == String.class ||
                type == Integer.class || type == int.class ||
@@ -114,31 +156,6 @@ public class FunctionRegistry {
                type == Float.class || type == float.class ||
                type == Boolean.class || type == boolean.class ||
                type == Object.class;
-    }
-    
-    /**
-     * 解析默认值
-     */
-    private Object parseDefaultValue(Class<?> paramType, Param ann) {
-        if (ann.defaultValue().isEmpty()) return null;
-        
-        try {
-            if (paramType == Integer.class || paramType == int.class) {
-                return Integer.parseInt(ann.defaultValue());
-            }
-            if (paramType == Long.class || paramType == long.class) {
-                return Long.parseLong(ann.defaultValue());
-            }
-            if (paramType == Double.class || paramType == double.class) {
-                return Double.parseDouble(ann.defaultValue());
-            }
-            if (paramType == Boolean.class || paramType == boolean.class) {
-                return Boolean.parseBoolean(ann.defaultValue());
-            }
-            return ann.defaultValue();
-        } catch (NumberFormatException e) {
-            return ann.defaultValue();
-        }
     }
     
     /**
@@ -151,9 +168,6 @@ public class FunctionRegistry {
             .toList();
     }
     
-    /**
-     * 获取必填参数列表
-     */
     private List<String> getRequiredParams(Map<String, FunctionDef.ParamSchema> params) {
         return params.entrySet().stream()
             .filter(e -> e.getValue().defaultValue() == null)
