@@ -381,7 +381,14 @@ public class ToolExecutor {
                 }
             }
             
-            // 4. 类型转换
+            // 4. 字段名规范化（snake_case → camelCase）
+            if (value instanceof Map) {
+                value = normalizeFieldNames((Map<String, Object>) value);
+            } else if (value instanceof List) {
+                value = normalizeList((List<?>) value);
+            }
+            
+            // 5. 类型转换
             if (value != null) {
                 result[i] = mapper.convertValue(
                     value, 
@@ -393,6 +400,69 @@ public class ToolExecutor {
         }
         
         return result;
+    }
+    
+    /**
+     * 字段名规范化：将 Map 中的 snake_case 键转换为 camelCase
+     * 递归处理嵌套对象
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeFieldNames(Map<String, Object> input) {
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<String, Object> entry : input.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            // 转换键名
+            String normalizedKey = snakeToCamel(key);
+            
+            // 递归处理嵌套 Map
+            if (value instanceof Map) {
+                result.put(normalizedKey, normalizeFieldNames((Map<String, Object>) value));
+            } else if (value instanceof List) {
+                result.put(normalizedKey, normalizeList((List<?>) value));
+            } else {
+                result.put(normalizedKey, value);
+            }
+        }
+        return result;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private List<Object> normalizeList(List<?> input) {
+        List<Object> result = new ArrayList<>();
+        for (Object item : input) {
+            if (item instanceof Map) {
+                result.add(normalizeFieldNames((Map<String, Object>) item));
+            } else if (item instanceof List) {
+                result.add(normalizeList((List<?>) item));
+            } else {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * snake_case 转 camelCase
+     */
+    private String snakeToCamel(String str) {
+        if (str == null || !str.contains("_")) {
+            return str;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean nextUpper = false;
+        for (char c : str.toCharArray()) {
+            if (c == '_') {
+                nextUpper = true;
+            } else if (nextUpper) {
+                sb.append(Character.toUpperCase(c));
+                nextUpper = false;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
     
     /**

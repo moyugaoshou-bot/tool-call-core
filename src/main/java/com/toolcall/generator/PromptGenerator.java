@@ -61,6 +61,69 @@ public class PromptGenerator {
         return Map.of("type", "function", "function", func);
     }
     
+    /**
+     * 递归追加参数定义
+     */
+    @SuppressWarnings("unchecked")
+    private void appendParams(StringBuilder sb, Map<String, FunctionDef.ParamSchema> props, 
+                               List<String> required, String indent) {
+        for (Map.Entry<String, FunctionDef.ParamSchema> entry : props.entrySet()) {
+            String key = entry.getKey();
+            FunctionDef.ParamSchema p = entry.getValue();
+            boolean isRequired = required != null && required.contains(key);
+            
+            sb.append(indent).append("- `").append(key).append("`");
+            if (isRequired) sb.append(" (required)");
+            sb.append(": ").append(p.type());
+            if (p.description() != null && !p.description().isEmpty()) {
+                sb.append(" - ").append(p.description());
+            }
+            sb.append("\n");
+            
+            // 递归显示嵌套属性
+            if (p.nestedProperties() != null && !p.nestedProperties().isEmpty()) {
+                Map<String, Object> nested = p.nestedProperties();
+                if (nested.containsKey("properties")) {
+                    Map<String, Object> nestedProps = (Map<String, Object>) nested.get("properties");
+                    List<String> nestedRequired = (List<String>) nested.getOrDefault("required", List.of());
+                    
+                    for (Map.Entry<String, Object> np : nestedProps.entrySet()) {
+                        String nestedKey = np.getKey();
+                        Object nestedVal = np.getValue();
+                        
+                        if (nestedVal instanceof Map) {
+                            Map<String, Object> nestedSchema = (Map<String, Object>) nestedVal;
+                            String nestedType = (String) nestedSchema.getOrDefault("type", "object");
+                            
+                            boolean nestedReq = nestedRequired.contains(nestedKey);
+                            sb.append(indent).append("  - `").append(nestedKey).append("`");
+                            if (nestedReq) sb.append(" (required)");
+                            sb.append(": ").append(nestedType);
+                            sb.append("\n");
+                            
+                            // 更深层次的递归
+                            if ("object".equals(nestedType) && nestedSchema.containsKey("properties")) {
+                                Map<String, Object> deeperProps = (Map<String, Object>) nestedSchema.get("properties");
+                                List<String> deeperReq = (List<String>) nestedSchema.getOrDefault("required", List.of());
+                                for (Map.Entry<String, Object> dp : deeperProps.entrySet()) {
+                                    String deeperKey = dp.getKey();
+                                    Map<String, Object> deeperSchema = (Map<String, Object>) dp.getValue();
+                                    String deeperType = (String) deeperSchema.getOrDefault("type", "object");
+                                    
+                                    boolean deeperRequired = deeperReq.contains(deeperKey);
+                                    sb.append(indent).append("    - `").append(deeperKey).append("`");
+                                    if (deeperRequired) sb.append(" (required)");
+                                    sb.append(": ").append(deeperType);
+                                    sb.append("\n");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     // ==================== 2. Prompt 模式：XML 标签格式 ====================
     
     /**
@@ -77,22 +140,12 @@ public class PromptGenerator {
             sb.append("### ").append(f.name()).append("\n\n");
             sb.append("**Description**: ").append(f.description()).append("\n\n");
             
-            // 参数定义
+            // 参数定义（递归显示嵌套）
             sb.append("**Parameters**:\n");
             if (f.parameters().properties().isEmpty()) {
                 sb.append("  - (none)\n");
             } else {
-                for (Map.Entry<String, FunctionDef.ParamSchema> entry : f.parameters().properties().entrySet()) {
-                    FunctionDef.ParamSchema p = entry.getValue();
-                    boolean required = f.parameters().required().contains(entry.getKey());
-                    sb.append("  - `").append(entry.getKey()).append("`");
-                    if (required) sb.append(" (required)");
-                    sb.append(": ").append(p.type());
-                    if (p.description() != null && !p.description().isEmpty()) {
-                        sb.append(" - ").append(p.description());
-                    }
-                    sb.append("\n");
-                }
+                appendParams(sb, f.parameters().properties(), f.parameters().required(), "");
             }
             sb.append("\n");
         }

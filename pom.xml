@@ -73,7 +73,14 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <!-- 单个测试超时1分钟 -->
+                    <!-- 单个测试方法超时30秒 -->
+                    <properties>
+                        <configurationParameters>
+                            junit.jupiter.execution.timeout.default=30s
+                            junit.jupiter.execution.timeout.testable.method.default=30s
+                        </configurationParameters>
+                    </properties>
+                    <!-- 进程超时60秒 -->
                     <forkedProcessExitTimeoutInSeconds>60</forkedProcessExitTimeoutInSeconds>
                     <reuseForks>true</reuseForks>
                 </configuration>
