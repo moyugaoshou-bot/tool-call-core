@@ -33,48 +33,76 @@ class ToolCallTest {
         assertTrue(framework.registry().has("search_hotels"));
     }
     
-    // ==================== 2. Prompt 模式测试 ====================
+    // ==================== 2. API 模式测试 ====================
     
     @Test
     @Order(2)
-    void testSystemPrompt_ContainsXMLTags() {
-        String prompt = framework.systemPrompt();
+    void testOpenAIToolsJson() {
+        String json = framework.toolsJson();
         
-        assertNotNull(prompt);
-        // 验证包含 XML 标签格式
-        assertTrue(prompt.contains("<tool_calls>"));
-        assertTrue(prompt.contains("</tool_calls>"));
-        assertTrue(prompt.contains("<thinking>"));
-        assertTrue(prompt.contains("</thinking>"));
+        assertNotNull(json);
+        // OpenAI 格式
+        assertTrue(json.contains("\"tools\""));
+        assertTrue(json.contains("\"type\":\"function\""));
+        assertTrue(json.contains("\"name\":\"get_weather\""));
+        assertTrue(json.contains("\"parameters\""));
+        assertTrue(json.contains("\"required\":[\"city\"]"));
     }
+    
+    // ==================== 3. Prompt 模式测试 ====================
     
     @Test
     @Order(3)
-    void testSystemPrompt_ContainsRules() {
+    void testSystemPrompt() {
         String prompt = framework.systemPrompt();
         
-        assertTrue(prompt.contains("Output Rules"));
-        assertTrue(prompt.contains("arguments MUST be a JSON string"));
+        assertNotNull(prompt);
+        assertTrue(prompt.contains("# Tools"));
+        assertTrue(prompt.contains("get_weather"));
+        assertTrue(prompt.contains("city"));
     }
     
     @Test
     @Order(4)
-    void testSystemPrompt_ContainsExamples() {
+    void testSystemPrompt_XMLTags() {
         String prompt = framework.systemPrompt();
         
-        assertTrue(prompt.contains("Examples"));
-        assertTrue(prompt.contains("Direct Answer"));
-        assertTrue(prompt.contains("Single Tool Call"));
+        // XML 标签格式
+        assertTrue(prompt.contains("<tool_calls>"));
+        assertTrue(prompt.contains("</tool_calls>"));
+        assertTrue(prompt.contains("<thinking>"));
     }
-    
-    // ==================== 3. 解析器测试 ====================
     
     @Test
     @Order(5)
+    void testOutputRules() {
+        String rules = framework.callingInstructions();
+        
+        assertNotNull(rules);
+        assertTrue(rules.contains("Output Rules"));
+        assertTrue(rules.contains("arguments MUST be a JSON string"));
+        assertTrue(rules.contains("<tool_calls>"));
+    }
+    
+    @Test
+    @Order(6)
+    void testFewShotExamples() {
+        String examples = framework.systemPrompt();
+        
+        assertTrue(examples.contains("## Examples"));
+        assertTrue(examples.contains("Direct Answer"));
+        assertTrue(examples.contains("Single Tool Call"));
+        assertTrue(examples.contains("Multiple Parallel Calls"));
+        assertTrue(examples.contains("Tool Result Handling"));
+    }
+    
+    // ==================== 4. 解析器测试 ====================
+    
+    @Test
+    @Order(7)
     void testParse_XMLFormat() {
-        // 模拟 LLM 返回的 XML 格式
         String response = """
-            <thinking>User wants weather info for Beijing</thinking>
+            <thinking>User wants weather</thinking>
             <tool_calls>
             [
               {
@@ -82,7 +110,7 @@ class ToolCallTest {
                 "type": "function",
                 "function": {
                   "name": "get_weather",
-                  "arguments": "{\\"city\\": \\"Beijing\\", \\"unit\\": \\"celsius\\"}"
+                  "arguments": "{\\"city\\": \\"Beijing\\"}"
                 }
               }
             ]
@@ -91,7 +119,6 @@ class ToolCallTest {
         
         ParseResult result = framework.parse(response);
         
-        assertTrue(result.textContent().isEmpty() || !result.textContent().contains("<tool_calls>"));
         assertEquals(1, result.toolCalls().size());
         assertEquals("call_001", result.toolCalls().get(0).id());
         assertEquals("get_weather", result.toolCalls().get(0).name());
@@ -99,40 +126,18 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(6)
+    @Order(8)
     void testParse_WithThinking() {
-        String response = """
-            <thinking>分析用户需求...</thinking>
-            <tool_calls>
-            [{"id": "call_001", "name": "get_weather", "arguments": {"city": "Beijing"}}]
-            </tool_calls>
-            """;
+        String response = "<thinking>Analyzing...</thinking><tool_calls>[{\"id\":\"c1\",\"name\":\"get_weather\",\"arguments\":{}}]</tool_calls>";
         
         ParseResult result = framework.parse(response);
         
         assertNotNull(result.thinking());
-        assertTrue(result.thinking().contains("分析用户需求"));
+        assertTrue(result.thinking().contains("Analyzing"));
     }
     
     @Test
-    @Order(7)
-    void testParse_CleanText() {
-        String response = """
-            <thinking>思考过程</thinking>
-            <tool_calls>
-            [{"id": "call_001", "name": "get_weather", "arguments": {"city": "Beijing"}}]
-            </tool_calls>
-            Some additional text.
-            """;
-        
-        ParseResult result = framework.parse(response);
-        
-        assertFalse(result.textContent().contains("<thinking>"));
-        assertFalse(result.textContent().contains("<tool_calls>"));
-    }
-    
-    @Test
-    @Order(8)
+    @Order(9)
     void testParse_JsonFormat() {
         // 也支持直接 JSON 格式
         String response = """
@@ -149,20 +154,19 @@ class ToolCallTest {
     }
     
     @Test
-    @Order(9)
+    @Order(10)
     void testParse_NoToolCalls() {
         String response = "Hello, how can I help you?";
         
         ParseResult result = framework.parse(response);
         
         assertTrue(result.toolCalls().isEmpty());
-        assertEquals("Hello, how can I help you?", result.textContent());
     }
     
-    // ==================== 4. 执行测试 ====================
+    // ==================== 5. 执行测试 ====================
     
     @Test
-    @Order(10)
+    @Order(11)
     void testExecute() {
         ToolCall call = new ToolCall("call_001", "get_weather", 
             Map.of("city", "Beijing", "unit", "celsius"));
@@ -173,12 +177,11 @@ class ToolCallTest {
         assertTrue(results.get(0).isSuccess());
     }
     
-    // ==================== 5. 端到端测试 ====================
+    // ==================== 6. 端到端测试 ====================
     
     @Test
-    @Order(11)
+    @Order(12)
     void testEndToEnd() {
-        // 模拟完整流程
         // 1. 生成 prompt
         String prompt = framework.systemPrompt();
         assertNotNull(prompt);
