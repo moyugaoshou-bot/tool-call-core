@@ -5,119 +5,116 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.toolcall.model.ToolCall;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * 解析 LLM 返回的 JSON 工具调用
- * 
- * 支持 OpenAI Function Calling 返回格式:
- * {
- *   "tool_calls": [
- *     {
- *       "id": "call_abc123",
- *       "type": "function",
- *       "function": {
- *         "name": "get_weather",
- *         "arguments": "{\"city\": \"Beijing\"}"
- *       }
- *     }
- *   ]
- * }
+ * Parse LLM response, extract tool calls
  */
 public class ToolCallParser {
     
     private final ObjectMapper mapper;
     
+    private static final Pattern TOOL_CALLS_PATTERN = Pattern.compile(
+        "<tool_calls>(.*?)</tool_calls>", 
+        Pattern.DOTALL
+    );
+    
+    private static final Pattern THINKING_PATTERN = Pattern.compile(
+        "<thinking>(.*?)</thinking>",
+        Pattern.DOTALL
+    );
+    
     public ToolCallParser() {
         this.mapper = new ObjectMapper();
     }
     
-    /**
-     * 解析 LLM 响应，提取工具调用
-     * 支持多种格式：
-     * 1. OpenAI 格式: { "tool_calls": [...] }
-     * 2. 纯数组格式: [...]
-     */
-    public List<ToolCall> parse(String response) {
-        List<ToolCall> calls = new ArrayList<>();
-        if (response == null || response.isBlank()) return calls;
+    public ParseResult parse(String response) {
+        if (response == null || response.isBlank()) {
+            return new ParseResult("", List.of(), null);
+        }
         
+        String thinking = extractThinking(response);
+        List<ToolCall> toolCalls = extractToolCalls(response);
+        String cleanText = cleanText(response);
+        
+        return new ParseResult(cleanText, toolCalls, thinking);
+    }
+    
+    private String extractThinking(String response) {
+        Matcher m = THINKING_PATTERN.matcher(response);
+        if (m.find()) {
+            return m.group(1).trim();
+        }
+        return null;
+    }
+    
+    private List<ToolCall> extractToolCalls(String response) {
+        List<ToolCall> calls = new ArrayList<>();
+        
+        // Try <tool_calls>...</tool_calls>
+        Matcher m = TOOL_CALLS_PATTERN.matcher(response);
+        if (m.find()) {
+            String jsonContent = m.group(1).trim();
+            try {
+                JsonNode root = mapper.readTree(jsonContent);
+                if (root.isArray()) {
+                    for (JsonNode node : root) {
+                        ToolCall call = parseToolCall(node);
+                        if (call != null) calls.add(call);
+                    }
+                    return calls;
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        
+        // Try direct JSON format
         try {
             JsonNode root = mapper.readTree(response);
-            
-            // 1. 尝试 OpenAI 格式: tool_calls[]
             JsonNode toolCalls = root.path("tool_calls");
             if (toolCalls.isArray()) {
                 for (JsonNode node : toolCalls) {
-                    ToolCall call = parseOpenAIFormat(node);
+                    ToolCall call = parseToolCall(node);
                     if (call != null) calls.add(call);
                 }
             }
-            
-            // 2. 支持纯数组格式
-            if (calls.isEmpty() && root.isArray()) {
-                for (JsonNode node : root) {
-                    ToolCall call = parseOpenAIFormat(node);
-                    if (call != null) calls.add(call);
-                }
-            }
-            
         } catch (Exception e) {
-            // 不是 JSON 格式，返回空列表
+            // ignore
         }
         
         return calls;
     }
     
-    /**
-     * 解析 OpenAI 格式的工具调用
-     * 支持两种变体：
-     * 1. 完整格式: { "id": "...", "type": "function", "function": { "name": "...", "arguments": "..." } }
-     * 2. 简化格式: { "id": "...", "name": "...", "arguments": {...} }
-     */
-    private ToolCall parseOpenAIFormat(JsonNode node) {
+    private ToolCall parseToolCall(JsonNode node) {
         try {
-            // 提取 id
             String id = node.has("id") ? node.get("id").asText() 
                 : "call_" + UUID.randomUUID().toString().substring(0, 8);
             
-            // 提取函数名 - 支持两种格式
             String name = null;
-            
-            // 格式1: function.name
             JsonNode functionNode = node.path("function");
             if (functionNode.isObject()) {
                 name = functionNode.path("name").asText();
             }
-            
-            // 格式2: 直接在根节点
             if (name == null || name.isBlank()) {
                 name = node.path("name").asText();
             }
             
             if (name == null || name.isBlank()) return null;
             
-            // 提取参数 - 支持多种格式
             Map<String, Object> args = new HashMap<>();
-            
-            // 尝试从 function.arguments 获取
-            JsonNode argsNode = null;
-            if (functionNode.isObject()) {
-                argsNode = functionNode.path("arguments");
-            }
-            
-            // 尝试从根节点 arguments 获取
+            JsonNode argsNode = functionNode.isObject() ? functionNode.path("arguments") : null;
             if (argsNode == null || argsNode.isMissingNode()) {
                 argsNode = node.path("arguments");
             }
             
             if (argsNode != null && !argsNode.isMissingNode()) {
                 if (argsNode.isObject()) {
-                    // arguments 是对象: { "city": "Beijing" }
                     args = mapper.convertValue(argsNode, Map.class);
                 } else if (argsNode.isTextual()) {
-                    // arguments 是字符串: "{\"city\": \"Beijing\"}"
                     String argsStr = argsNode.asText();
-                    if (argsStr.startsWith("{") && argsStr.endsWith("}")) {
+                    if (argsStr.startsWith("{")) {
                         args = mapper.readValue(argsStr, Map.class);
                     }
                 }
@@ -130,10 +127,28 @@ public class ToolCallParser {
         }
     }
     
-    /**
-     * 检查响应是否包含工具调用
-     */
+    private String cleanText(String response) {
+        // Remove thinking
+        String cleaned = THINKING_PATTERN.matcher(response).replaceAll("");
+        // Remove tool_calls
+        cleaned = TOOL_CALLS_PATTERN.matcher(cleaned).replaceAll("");
+        // Remove tool_response
+        cleaned = cleaned.replaceAll("<tool_response>.*?</tool_response>", "");
+        
+        return cleaned.trim();
+    }
+    
     public boolean hasToolCalls(String response) {
-        return !parse(response).isEmpty();
+        return !parse(response).toolCalls().isEmpty();
+    }
+    
+    public record ParseResult(
+        String textContent,
+        List<ToolCall> toolCalls,
+        String thinking
+    ) {
+        public boolean hasToolCalls() {
+            return !toolCalls.isEmpty();
+        }
     }
 }

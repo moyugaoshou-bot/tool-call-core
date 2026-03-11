@@ -7,11 +7,7 @@ import com.toolcall.registry.FunctionRegistry;
 import java.util.*;
 
 /**
- * 提示词生成器 - 将工具信息注入到 system prompt
- * 
- * 支持两种模式：
- * 1. API 模式: 通过 LLM API 的 tools 参数传入（JSON格式）
- * 2. Prompt 模式: 将工具信息写入 system prompt，让 LLM 自行决定调用
+ * Prompt Generator - OpenAI Tool-Call Prompt Format
  */
 public class PromptGenerator {
     
@@ -23,30 +19,96 @@ public class PromptGenerator {
         this.mapper = new ObjectMapper();
     }
     
-    // ==================== API 模式：生成 OpenAI 格式 tools JSON ====================
+    public String toSystemPrompt() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Tools\n\n## Available Tools\n\n");
+        
+        for (FunctionDef f : registry.getAllFunctions()) {
+            sb.append("### ").append(f.name()).append("\n\n");
+            sb.append("**Description**: ").append(f.description()).append("\n\n");
+            sb.append("**Parameters**:\n```json\n");
+            try {
+                sb.append(mapper.writeValueAsString(f.toJsonSchema()));
+            } catch (Exception e) {
+                sb.append("{}");
+            }
+            sb.append("\n```\n\n");
+        }
+        
+        sb.append(getOutputRules());
+        sb.append(getFewShotExamples());
+        
+        return sb.toString();
+    }
     
-    /**
-     * 生成 OpenAI API 格式的 tools JSON
-     * 用于 LLM API 的 tools 参数
-     * 
-     * 输出格式符合 OpenAI 规范:
-     * {
-     *   "tools": [
-     *     {
-     *       "type": "function",
-     *       "function": {
-     *         "name": "get_weather",
-     *         "description": "...",
-     *         "parameters": {
-     *           "type": "object",
-     *           "properties": {...},
-     *           "required": [...]
-     *         }
-     *       }
-     *     }
-     *   ]
-     * }
-     */
+    public String getOutputRules() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Output Rules\n\n");
+        sb.append("Important: You must follow these format rules.\n\n");
+        sb.append("- If you need to call a tool, output MUST be wrapped in <tool_calls> tags:\n");
+        sb.append("<tool_calls>\n");
+        sb.append("[\n");
+        sb.append("  {\n");
+        sb.append("    \"id\": \"call_001\",\n");
+        sb.append("    \"type\": \"function\",\n");
+        sb.append("    \"function\": {\n");
+        sb.append("      \"name\": \"tool_name\",\n");
+        sb.append("      \"arguments\": \"{\\\"param\\\": \\\"value\\\"}\"\n");
+        sb.append("    }\n");
+        sb.append("  }\n");
+        sb.append("]\n");
+        sb.append("</tool_calls>\n\n");
+        sb.append("- arguments MUST be a JSON string (escaped), NOT an object\n");
+        sb.append("- If no tool is needed, output directly without <tool_calls> tags\n\n");
+        sb.append("- Before calling tools, you can think in <thinking> tags:\n");
+        sb.append("<thinking>What information does the user need?</thinking>\n\n");
+        return sb.toString();
+    }
+    
+    public String getFewShotExamples() {
+        StringBuilder sb = new StringBuilder();
+        String exampleTool = registry.getNames().iterator().next();
+        
+        sb.append("## Examples\n\n");
+        
+        sb.append("### Example 1: Direct Answer\n");
+        sb.append("User: Hello\n");
+        sb.append("Assistant: <thinking>Greeting, no tool needed.</thinking>\n");
+        sb.append("Hello! How can I help you today?\n\n");
+        
+        sb.append("### Example 2: Single Tool Call\n");
+        sb.append("User: What's the weather in Beijing?\n");
+        sb.append("Assistant: <thinking>User asks about weather.</thinking>\n");
+        sb.append("<tool_calls>\n");
+        sb.append("[\n");
+        sb.append("  {\n");
+        sb.append("    \"id\": \"call_1\",\n");
+        sb.append("    \"type\": \"function\",\n");
+        sb.append("    \"function\": {\n");
+        sb.append("      \"name\": \"").append(exampleTool).append("\",\n");
+        sb.append("      \"arguments\": \"{\\\"city\\\": \\\"Beijing\\\"}\"\n");
+        sb.append("    }\n");
+        sb.append("  }\n");
+        sb.append("]\n");
+        sb.append("</tool_calls>\n\n");
+        
+        sb.append("### Example 3: Multiple Parallel Calls\n");
+        sb.append("User: Beijing or Shanghai weather?\n");
+        sb.append("<tool_calls>\n");
+        sb.append("[\n");
+        sb.append("  {\"id\": \"call_2\", \"type\": \"function\", \"function\": {\"name\": \"").append(exampleTool).append("\", \"arguments\": \"{\\\"city\\\": \\\"Beijing\\\"}\"}},\n");
+        sb.append("  {\"id\": \"call_3\", \"type\": \"function\", \"function\": {\"name\": \"").append(exampleTool).append("\", \"arguments\": \"{\\\"city\\\": \\\"Shanghai\\\"}\"}}\n");
+        sb.append("]\n");
+        sb.append("</tool_calls>\n\n");
+        
+        sb.append("### Example 4: Tool Result Handling\n");
+        sb.append("System: <tool_response>{\"tool_call_id\": \"call_1\", \"name\": \"").append(exampleTool).append("\", \"content\": \"sunny\"}</tool_response>\n");
+        sb.append("Assistant: <thinking>Got the result.</thinking>\n");
+        sb.append("The weather is sunny.\n");
+        
+        return sb.toString();
+    }
+    
     public String toOpenAIToolsJson() {
         try {
             List<Map<String, Object>> tools = registry.getAllFunctions().stream()
@@ -62,109 +124,19 @@ public class PromptGenerator {
         Map<String, Object> func = new LinkedHashMap<>();
         func.put("name", f.name());
         func.put("description", f.description());
-        func.put("parameters", f.toJsonSchema()); // 使用干净的 JSON Schema
+        func.put("parameters", f.toJsonSchema());
         return Map.of("type", "function", "function", func);
     }
     
-    // ==================== Prompt 模式：生成提示词 ====================
-    
-    /**
-     * 生成完整的 system prompt（包含工具信息）
-     * 这是给 LLM 看的提示词，告诉它有哪些工具可用
-     */
-    public String toSystemPrompt() {
-        StringBuilder sb = new StringBuilder();
-        
-        sb.append("You have access to the following functions:\n\n");
-        
-        for (FunctionDef f : registry.getAllFunctions()) {
-            sb.append("## ").append(f.name()).append("\n");
-            sb.append(f.description()).append("\n");
-            sb.append("Parameters:\n");
-            
-            if (f.parameters().properties().isEmpty()) {
-                sb.append("  - (none)\n");
-            } else {
-                for (var entry : f.parameters().properties().entrySet()) {
-                    var p = entry.getValue();
-                    boolean isRequired = f.parameters().required().contains(entry.getKey());
-                    
-                    sb.append("  - ").append(entry.getKey());
-                    if (isRequired) {
-                        sb.append(" (required)");
-                    }
-                    sb.append(": ").append(p.type());
-                    if (p.description() != null && !p.description().isEmpty()) {
-                        sb.append(" - ").append(p.description());
-                    }
-                    sb.append("\n");
-                }
-            }
-            sb.append("\n");
-        }
-        
-        sb.append("\n").append(getCallingInstructions());
-        
-        return sb.toString();
-    }
-    
-    /**
-     * 生成工具调用说明 - 告诉 LLM 如何返回工具调用
-     */
-    public String getCallingInstructions() {
-        return """
-## How to Call Functions
-
-When you need to use a function, respond with a JSON object in the following format:
-
-{
-  "tool_calls": [
-    {
-      "id": "call_001",
-      "name": "function_name",
-      "arguments": {
-        "param1": "value1",
-        "param2": "value2"
-      }
-    }
-  ]
-}
-
-Important:
-- Always use "tool_calls" key for function calls
-- Each call must have a unique "id"
-- Use "arguments" for parameter values
-- Do not call functions in your text response, only in the JSON block
-""";
-    }
-    
-    /**
-     * 生成工具结果处理说明
-     */
-    public String getResultHandlingInstructions() {
-        return """
-## Handling Tool Results
-
-When you receive tool results, analyze them and provide your final answer to the user.
-The results will be in this format:
-
-{
-  "tool_results": [
-    {
-      "id": "call_001",
-      "name": "function_name",
-      "result": "the result value",
-      "success": true
-    }
-  ]
-}
-""";
-    }
-    
-    /**
-     * 生成完整的 system prompt（包含工具信息 + 调用说明 + 结果处理）
-     */
     public String toFullSystemPrompt() {
-        return toSystemPrompt() + "\n" + getResultHandlingInstructions();
+        return toSystemPrompt();
+    }
+    
+    public String getCallingInstructions() {
+        return getOutputRules();
+    }
+    
+    public String getResultHandlingInstructions() {
+        return "## Handling Tool Results\n\nWhen you receive tool results, analyze them.\n";
     }
 }

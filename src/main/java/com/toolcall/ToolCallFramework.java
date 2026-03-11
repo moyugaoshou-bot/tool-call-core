@@ -5,6 +5,7 @@ import com.toolcall.generator.PromptGenerator;
 import com.toolcall.model.ToolCall;
 import com.toolcall.model.ToolResult;
 import com.toolcall.parser.ToolCallParser;
+import com.toolcall.parser.ToolCallParser.ParseResult;
 import com.toolcall.registry.FunctionRegistry;
 
 import java.util.List;
@@ -12,9 +13,13 @@ import java.util.List;
 /**
  * ToolCall Framework - 零依赖AI框架的纯Java实现
  * 
- * 支持两种模式：
- * 1. API 模式: 通过 LLM API 的 tools 参数传入工具定义
- * 2. Prompt 模式: 将工具信息注入 system prompt，让 LLM 自行决定调用
+ * 核心流程：
+ * 1. 注册工具 (register)
+ * 2. 生成 System Prompt (systemPrompt / fullSystemPrompt)
+ * 3. 将 Prompt 注入 LLM
+ * 4. 解析 LLM 响应 (parse)
+ * 5. 执行工具 (execute)
+ * 6. 将结果返回给 LLM 处理
  */
 public class ToolCallFramework {
     
@@ -48,35 +53,45 @@ public class ToolCallFramework {
     /** 获取注册表 */
     public FunctionRegistry registry() { return registry; }
     
-    // ==================== API 模式 ====================
+    // ==================== Prompt 模式（核心） ====================
     
-    /** 生成 OpenAI API 格式的 tools JSON（用于 API 的 tools 参数） */
-    public String toolsJson() { return promptGen.toOpenAIToolsJson(); }
-    
-    // ==================== Prompt 模式 ====================
-    
-    /** 生成 system prompt（包含工具信息，用于注入到提示词） */
+    /** 生成完整 System Prompt（工具定义 + 规则 + 示例） */
     public String systemPrompt() { return promptGen.toSystemPrompt(); }
     
-    /** 生成完整的 system prompt（含工具+调用说明+结果处理） */
-    public String fullSystemPrompt() { return promptGen.toFullSystemPrompt(); }
+    /** 工具调用格式说明 */
+    public String callingInstructions() { return promptGen.getOutputRules(); }
     
-    /** 生成工具调用说明 */
-    public String callingInstructions() { return promptGen.getCallingInstructions(); }
+    /** Few-shot 示例 */
+    public String fewShotExamples() { return promptGen.getFewShotExamples(); }
     
-    /** 生成工具结果处理说明 */
-    public String resultHandlingInstructions() { return promptGen.getResultHandlingInstructions(); }
+    // ==================== API 模式（可选） ====================
     
-    // ==================== 解析和执行 ====================
+    /** 生成 OpenAI API 格式的 tools JSON */
+    public String toolsJson() { return promptGen.toOpenAIToolsJson(); }
     
-    /** 解析 LLM 返回的文本，提取工具调用 */
-    public List<ToolCall> parse(String llmResponse) { return parser.parse(llmResponse); }
+    // ==================== 解析 ====================
+    
+    /** 解析 LLM 响应，返回 ParseResult */
+    public ParseResult parse(String llmResponse) { 
+        return parser.parse(llmResponse); 
+    }
+    
+    /** 解析并提取工具调用 */
+    public List<ToolCall> parseToolCalls(String llmResponse) { 
+        return parser.parse(llmResponse).toolCalls(); 
+    }
+    
+    // ==================== 执行 ====================
     
     /** 执行工具调用 */
-    public List<ToolResult> execute(List<ToolCall> calls) { return executor.execute(calls); }
+    public List<ToolResult> execute(List<ToolCall> calls) { 
+        return executor.execute(calls); 
+    }
     
-    /** 一键执行：从 LLM 响应解析并执行工具 */
-    public List<ToolResult> execute(String llmResponse) { return execute(parse(llmResponse)); }
+    /** 一键执行：从解析到执行 */
+    public List<ToolResult> execute(String llmResponse) { 
+        return execute(parseToolCalls(llmResponse)); 
+    }
     
     /** 关闭执行器 */
     public void shutdown() { executor.shutdown(); }

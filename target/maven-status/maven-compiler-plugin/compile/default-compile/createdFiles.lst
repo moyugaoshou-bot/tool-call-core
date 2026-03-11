@@ -4,6 +4,7 @@ com/toolcall/registry/FunctionRegistry$FuncMeta.class
 com/toolcall/annotation/Tool.class
 com/toolcall/annotation/Param.class
 com/toolcall/generator/PromptGenerator.class
+com/toolcall/parser/ToolCallParser$ParseResult.class
 com/toolcall/parser/ToolCallParser.class
 com/toolcall/model/ToolCall.class
 com/toolcall/model/FunctionDef.class
