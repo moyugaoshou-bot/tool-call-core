@@ -148,7 +148,15 @@ public class ToolExecutor {
                 value = args.get(ann.name());
             }
             
-            // 2. 如果没找到，尝试用参数索引作为 key（因为 LLM 可能按顺序传参）
+            // 2. 如果没找到，尝试用参数名匹配
+            if (value == null) {
+                String paramName = param.getName();
+                if (paramName != null) {
+                    value = args.get(paramName);
+                }
+            }
+            
+            // 3. 如果还没找到，尝试用参数索引作为 key（因为 LLM 可能按顺序传参）
             if (value == null) {
                 // 按参数顺序尝试
                 List<Object> argValues = new ArrayList<>(args.values());
